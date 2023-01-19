@@ -24,7 +24,6 @@ namespace BokningsAppen
             public static int loggedInId = 0;
             public static int weekNumber = GetIso8601WeekOfYear(DateTime.Now);
         }
-
         static public void Run()
         {
             Console.BackgroundColor = ConsoleColor.Gray;
@@ -35,7 +34,6 @@ namespace BokningsAppen
                 StartPage();
             }
         }
-
         static public void StartPage()
         {
             Console.Clear();
@@ -61,6 +59,53 @@ namespace BokningsAppen
             }
             Console.ReadKey(true);
             Console.Clear();
+        }
+        private static void SignUp()
+        {
+            Console.Clear();
+
+            Console.WriteLine($"Registrera dig här!\n");
+            Console.Write("Ange personnummer (YYYYMMDDXXXX): ");
+            long newSocialSecurityNumber = long.Parse(Console.ReadLine());
+            Console.Write("Ange namn: ");
+            string newName = Console.ReadLine();
+            Console.WriteLine("Ange lösenord: ");
+            string newPassword = Console.ReadLine();
+            Console.Write("Adminrättigheter? (y/n): ");
+            string newAdmin = Console.ReadLine().ToUpper();
+            bool newAdminBool = false;
+
+            if (newAdmin == "Y")
+            {
+                newAdminBool = true;
+            }
+            else if (newAdmin == "N")
+            {
+                newAdminBool = false;
+            }
+            else
+            {
+                WrongInput();
+            }
+
+            using (var db = new BookingSystemContext())
+            {
+                var newUser = new User
+                {
+                    SocialSecurityNumber = newSocialSecurityNumber,
+                    Password = newPassword,
+                    Name = newName,
+                    Admin = newAdminBool,
+                };
+                var userList = db.Users;
+                userList.Add(newUser);
+                
+                db.SaveChanges();
+            }
+
+            Console.WriteLine("Du är nu registerad! Tryck någonstans för att fortsätta.");
+            Console.ReadKey();
+            StartPage();
         }
         private static void LogIn()
         {
@@ -101,7 +146,7 @@ namespace BokningsAppen
             }
         }
 
-
+        //――――――――――――――――――――Användarens metoder―――――――――――――――――――――――――――――――――――――――――――――
         private static void UserStartPage()
         {
             Console.Clear();
@@ -135,155 +180,6 @@ namespace BokningsAppen
                 Console.Clear();
             }
         }
-
-        private static void NewBooking()
-        {
-            using (var db = new BookingSystemContext())
-            {
-                var userName = db.Users.Where(x => x.Id == Globals.loggedInId).Select(x => x.Name).FirstOrDefault();
-                bool occupied = false;
-                if (Globals.weekNumber >= GetIso8601WeekOfYear(DateTime.Now))
-                {
-                    Console.WriteLine($"Ny bokning\n\n");
-                    Console.SetCursorPosition(0, 13);
-                    Console.Write("Ange ID för den dag du vill boka: ");
-                    ShowAllDays();
-                    Console.SetCursorPosition(0, 14);
-                    int newDay = int.Parse(Console.ReadLine());
-                    Console.SetCursorPosition(0, 16);
-                    Console.Write("Ange ID för det rum du vill boka: ");
-                    ShowAllRooms();
-                    Console.SetCursorPosition(0, 17);
-                    int newRoom = int.Parse(Console.ReadLine());
-                    foreach (var b in db.Bookings.Where(w => w.Week == Globals.weekNumber).Where(d => d.DayId == newDay))
-                    {
-                        if (b.RoomId != newRoom)
-                        {
-                            continue;
-                        }
-                        else if (b.RoomId == newRoom)
-                        {
-                            Console.WriteLine("Det rummet är redan bokat den dagen. Var god välj ett annat.\nTryck någonstans för att fortsätta.");
-                            occupied = true;
-                            Console.ReadKey();
-                            ViewAllRooms();
-                        }
-                    }
-                    if (occupied == false)
-                    {
-                        ViewRoomInfo(newRoom);
-                        Console.WriteLine("Boka detta rum?\n[J]a\t[N]ej");
-                    }
-
-                    ConsoleKeyInfo key = Console.ReadKey(true);
-
-                    switch (key.KeyChar)
-                    {
-                        case 'j':
-                            var newBooking = new Booking
-                            {
-                                RoomId = newRoom,
-                                UserId = Globals.loggedInId,
-                                DayId = newDay,
-                                Week = Globals.weekNumber
-                            };
-                            var bookingList = db.Bookings;
-                            bookingList.Add(newBooking);
-                            db.SaveChanges();
-
-                            Console.WriteLine("Du har nu bokat ett rum! \nTryck någonstans för att fortsätta.");
-                            Console.ReadKey();
-                            ViewAllRooms();
-                            break;
-                        case 'n':
-                            ViewAllRooms();
-                            break;
-                        default:
-                            WrongInput();
-                            break;
-                    }
-                }
-                else if (Globals.weekNumber < GetIso8601WeekOfYear(DateTime.Now))
-                {
-                    Console.WriteLine("Det går inte att boka den valda veckan.\nTryck någonstans för att fortsätta.");
-                    Console.ReadKey();
-                    ViewAllRooms();
-                }
-            }
-        }
-
-        private static void ViewRoomInfo(int roomId)
-        {
-            Console.WriteLine();
-            using (var db = new BookingSystemContext())
-            {
-                var rooms = (from r in db.Rooms
-                             where r.Id == roomId
-                             select r);
-
-                foreach (var room in rooms)
-                {
-                    Console.WriteLine($"Rum {room.RoomName} med rums-id {room.Id} har {room.Seats} stolar, {room.ElectricalOutlets} eluttag,\n{(room.Window ? "" : "inga ")}fönster, {(room.Whiteboard ? "" : "ingen ")}whiteboard, och {(room.Projector ? "" : "ingen ")}projektor.");
-                }
-
-            }
-        }
-        private static void YourBookings()
-        {
-            Console.Clear();
-
-            using (var db = new BookingSystemContext())
-            {
-                var userName = db.Users.Where(x => x.Id == Globals.loggedInId).Select(x => x.Name).FirstOrDefault();
-
-                Console.WriteLine($"{userName} - Dina bokningar\n\n" +
-                    $"[A]vboka rum\t[T]illbaka\tNuvarande vecka: {Globals.weekNumber}\n");
-
-                var bookings = (from b in db.Bookings
-                                join d in db.Days on b.DayId equals d.Id
-                                join r in db.Rooms on b.RoomId equals r.Id
-                                orderby b.Week, d.Id
-                                where b.UserId == Globals.loggedInId
-                                select new { BookingId = b.Id, RoomName = r.RoomName, Week = b.Week, Day = d.Name });
-
-                Console.WriteLine($"Boknings-ID\tRumsnamn\tVecka\tDag");
-                foreach (var booking in bookings.Where(x => x.Week >= Globals.weekNumber))
-                {
-                    Console.WriteLine($"{booking.BookingId}\t\t{booking.RoomName}\t\t{booking.Week}\t{booking.Day}");
-                }
-
-                ConsoleKeyInfo key = Console.ReadKey(true);
-
-                switch (key.KeyChar)
-                {
-                    case 't':
-                        UserStartPage();
-                        break;
-                    case 'a':
-                        Console.WriteLine();
-                        Console.Write("Skriv in ID på den bokning du vill ta bort: ");
-                        int bookingId = int.Parse(Console.ReadLine());
-
-                        var booking = db.Bookings.Where(x => x.Id == bookingId).SingleOrDefault();
-
-                        if (booking != null)
-                        {
-                            db.Bookings.Remove((Booking)booking);
-                            db.SaveChanges();
-                        }
-
-                        Console.WriteLine("Rum avbokat! Tryck någonstans för att fortsätta.");
-                        Console.ReadKey();
-                        YourBookings();
-
-                        break;
-                    default:
-                        WrongInput();
-                        break;
-                }
-            }
-        }
-
         public static void ViewAllRooms()
         {
             Console.Clear();
@@ -386,7 +282,185 @@ namespace BokningsAppen
             Console.ReadKey(true);
             Console.Clear();
         }
+        private static void NewBooking()
+        {
+            using (var db = new BookingSystemContext())
+            {
+                var userName = db.Users.Where(x => x.Id == Globals.loggedInId).Select(x => x.Name).FirstOrDefault();
+                bool occupied = false;
+                if (Globals.weekNumber >= GetIso8601WeekOfYear(DateTime.Now))
+                {
+                    Console.WriteLine($"Ny bokning\n\n");
+                    Console.SetCursorPosition(0, 13);
+                    Console.Write("Ange ID för den dag du vill boka: ");
+                    ShowAllDays();
+                    Console.SetCursorPosition(0, 14);
+                    int newDay = int.Parse(Console.ReadLine());
+                    Console.SetCursorPosition(0, 16);
+                    Console.Write("Ange ID för det rum du vill boka: ");
+                    ShowAllRooms();
+                    Console.SetCursorPosition(0, 17);
+                    int newRoom = int.Parse(Console.ReadLine());
+                    foreach (var b in db.Bookings.Where(w => w.Week == Globals.weekNumber).Where(d => d.DayId == newDay))
+                    {
+                        if (b.RoomId != newRoom)
+                        {
+                            continue;
+                        }
+                        else if (b.RoomId == newRoom)
+                        {
+                            Console.WriteLine("Det rummet är redan bokat den dagen. Var god välj ett annat.\nTryck någonstans för att fortsätta.");
+                            occupied = true;
+                            Console.ReadKey();
+                            ViewAllRooms();
+                        }
+                    }
+                    if (occupied == false)
+                    {
+                        ViewRoomInfo(newRoom);
+                        Console.WriteLine("Boka detta rum?\n[J]a\t[N]ej");
+                    }
 
+                    ConsoleKeyInfo key = Console.ReadKey(true);
+
+                    switch (key.KeyChar)
+                    {
+                        case 'j':
+                            var newBooking = new Booking
+                            {
+                                RoomId = newRoom,
+                                UserId = Globals.loggedInId,
+                                DayId = newDay,
+                                Week = Globals.weekNumber
+                            };
+                            var bookingList = db.Bookings;
+                            bookingList.Add(newBooking);
+                            db.SaveChanges();
+
+                            Console.WriteLine("Du har nu bokat ett rum! \nTryck någonstans för att fortsätta.");
+                            Console.ReadKey();
+                            ViewAllRooms();
+                            break;
+                        case 'n':
+                            ViewAllRooms();
+                            break;
+                        default:
+                            WrongInput();
+                            break;
+                    }
+                }
+                else if (Globals.weekNumber < GetIso8601WeekOfYear(DateTime.Now))
+                {
+                    Console.WriteLine("Det går inte att boka den valda veckan.\nTryck någonstans för att fortsätta.");
+                    Console.ReadKey();
+                    ViewAllRooms();
+                }
+            }
+        }
+        private static void ShowAllDays()
+        {
+            using (var db = new BookingSystemContext())
+            {
+                int i = 11;
+                Console.SetCursorPosition(45, i);
+                Console.WriteLine("ID\tDag");
+                foreach (var day in db.Days)
+                {
+                    i++;
+                    Console.SetCursorPosition(45, i);
+                    Console.WriteLine($"{day.Id}\t{day.Name}");
+                }
+
+            }
+        }
+        private static void ShowAllRooms()
+        {
+            using (var db = new BookingSystemContext())
+            {
+                int i = 11;
+                Console.SetCursorPosition(60, i);
+                Console.WriteLine("ID\tRumsnamn");
+                foreach (var room in db.Rooms)
+                {
+                    i++;
+                    Console.SetCursorPosition(60, i);
+                    Console.WriteLine($"{room.Id}\t{room.RoomName}");
+                }
+
+            }
+        }
+        private static void ViewRoomInfo(int roomId)
+        {
+            Console.WriteLine();
+            using (var db = new BookingSystemContext())
+            {
+                var rooms = (from r in db.Rooms
+                             where r.Id == roomId
+                             select r);
+
+                foreach (var room in rooms)
+                {
+                    Console.WriteLine($"Rum {room.RoomName} med rums-id {room.Id} har {room.Seats} stolar, {room.ElectricalOutlets} eluttag,\n{(room.Window ? "" : "inga ")}fönster, {(room.Whiteboard ? "" : "ingen ")}whiteboard, och {(room.Projector ? "" : "ingen ")}projektor.");
+                }
+            }
+        } 
+        private static void YourBookings()
+        {
+            Console.Clear();
+
+            using (var db = new BookingSystemContext())
+            {
+                var userName = db.Users.Where(x => x.Id == Globals.loggedInId).Select(x => x.Name).FirstOrDefault();
+
+                Console.WriteLine($"{userName} - Dina bokningar\n\n" +
+                    $"[A]vboka rum\t[T]illbaka\tNuvarande vecka: {Globals.weekNumber}\n");
+
+                var bookings = (from b in db.Bookings
+                                join d in db.Days on b.DayId equals d.Id
+                                join r in db.Rooms on b.RoomId equals r.Id
+                                orderby b.Week, d.Id
+                                where b.UserId == Globals.loggedInId
+                                select new { BookingId = b.Id, RoomName = r.RoomName, Week = b.Week, Day = d.Name });
+
+                Console.WriteLine($"Boknings-ID\tRumsnamn\tVecka\tDag");
+                foreach (var booking in bookings.Where(x => x.Week >= Globals.weekNumber))
+                {
+                    Console.WriteLine($"{booking.BookingId}\t\t{booking.RoomName}\t\t{booking.Week}\t{booking.Day}");
+                }
+
+                ConsoleKeyInfo key = Console.ReadKey(true);
+
+                switch (key.KeyChar)
+                {
+                    case 't':
+                        UserStartPage();
+                        break;
+                    case 'a':
+                        Console.WriteLine();
+                        Console.Write("Skriv in ID på den bokning du vill ta bort: ");
+                        int bookingId = int.Parse(Console.ReadLine());
+
+                        var booking = db.Bookings.Where(x => x.Id == bookingId).SingleOrDefault();
+
+                        if (booking != null)
+                        {
+                            db.Bookings.Remove((Booking)booking);
+                            db.SaveChanges();
+                        }
+
+                        Console.WriteLine("Rum avbokat! Tryck någonstans för att fortsätta.");
+                        Console.ReadKey();
+                        YourBookings();
+
+                        break;
+                    default:
+                        WrongInput();
+                        break;
+                }
+            }
+        }
+
+        //―――――――――――――――――――――Admins metoder――――――――――――――――――――――――――――――――――――――――――――――――
         private static void AdminStartPage()
         {
             Console.Clear();
@@ -421,124 +495,6 @@ namespace BokningsAppen
                 }
             }
         }
-
-        private static void Statistics()
-        {
-            Console.WriteLine("\nStatistik\n\n" +
-                "0. Gå tillbaka\n" +
-                "1. Populäraste rummet\n" +
-                "2. Aktivaste användaren");
-
-            using (var db = new BookingSystemContext())
-            {
-
-                ConsoleKeyInfo key = Console.ReadKey(true);
-
-                switch (key.KeyChar)
-                {
-                    case '0':
-                        AdminStartPage();
-                        break;
-                    case '1':
-                        var mostBookedRooms = (from r in db.Rooms
-                                               join b in db.Bookings on r.Id equals b.RoomId
-                                               select new { r.RoomName, b.RoomId }).ToList().GroupBy(r => r.RoomName);
-                        int count = 1;
-
-                        Console.WriteLine("\nTre populäraste rummen:\n");
-
-                        foreach (var room in mostBookedRooms.OrderByDescending(r => r.Count()).Take(3))
-                        {
-                            Console.WriteLine($"{count}: Rum {room.Key} har bokats {room.Count()} gånger.");
-                            count++;
-                        }
-                        break;
-                    case '2':
-                        var mostActiveUsers = (from u in db.Users
-                                               join b in db.Bookings on u.Id equals b.UserId
-                                               select new { u.Name, b.UserId }).ToList().GroupBy(u => u.Name);
-                        count = 1;
-
-                        Console.WriteLine("\nTre aktivaste användarna:\n");
-
-                        foreach (var user in mostActiveUsers.OrderByDescending(u => u.Count()).Take(3))
-                        {
-                            Console.WriteLine($"{count}: {user.Key} har bokat rum {user.Count()} gånger.");
-                            count++;
-                        }
-                        break;
-                    default:
-                        WrongInput();
-                        break;
-                }
-            }
-            Console.ReadKey();
-            AdminStartPage();
-        }
-
-        private static void ViewAllBookings()
-        {
-            Console.Clear();
-
-            using (var db = new BookingSystemContext())
-            {
-                var userName = db.Users.Where(x => x.Id == Globals.loggedInId).Select(x => x.Name).FirstOrDefault();
-
-                Console.WriteLine($"{userName} - Alla bokningar\n\n" +
-                    $"[A]vboka rum\t[T]illbaka\n");
-
-                var bookings = (from b in db.Bookings
-                                join u in db.Users on b.UserId equals u.Id
-                                join d in db.Days on b.DayId equals d.Id
-                                join r in db.Rooms on b.RoomId equals r.Id
-                                orderby b.Week, d.Id
-                                select new { BookingId = b.Id, RoomName = r.RoomName, Week = b.Week, Day = d.Name, UserId = u.Id, UserName = u.Name });
-
-                Console.WriteLine($"Boknings-ID\tRumsnamn\tVecka\tDag\tAnvändar-Id\tAnvändare");
-                foreach (var booking in bookings)
-                {
-                    Console.WriteLine($"{booking.BookingId}\t\t{booking.RoomName}\t\t{booking.Week}\t{booking.Day}\t{booking.UserId}\t\t{booking.UserName}");
-                }
-
-                ConsoleKeyInfo key = Console.ReadKey(true);
-
-                switch (key.KeyChar)
-                {
-                    case 't':
-                        AdminStartPage();
-                        break;
-                    case 'a':
-                        Console.WriteLine();
-                        Console.Write("Skriv in ID på den bokning du vill ta bort: ");
-                        int bookingId = int.Parse(Console.ReadLine());
-
-                        var booking = db.Bookings.Where(x => x.Id == bookingId).SingleOrDefault();
-
-                        if (booking != null)
-                        {
-                            db.Bookings.Remove((Booking)booking);
-                            db.SaveChanges();
-                        }
-
-                        Console.WriteLine("Rum avbokat! Tryck någonstans för att fortsätta.");
-                        Console.ReadKey();
-                        ViewAllBookings();
-
-                        break;
-                    default:
-                        WrongInput();
-                        break;
-                }
-            }
-        }
-
-        private static void EditRoom()
-        {
-            Console.WriteLine("Redigera ett rum\n\n");
-            Console.ReadKey();
-            AdminStartPage();
-        }
-
         private static void AddNewRoom()
         {
             Console.WriteLine("Lägg till ett nytt rum\n\n");
@@ -596,90 +552,119 @@ namespace BokningsAppen
             Console.ReadKey();
             AdminStartPage();
         }
-
-        private static void SignUp()
+        private static void ViewAllBookings()
         {
             Console.Clear();
 
-            Console.WriteLine($"Registrera dig här!\n");
-            Console.Write("Ange personnummer (YYYYMMDDXXXX): ");
-            long newSocialSecurityNumber = long.Parse(Console.ReadLine());
-            Console.Write("Ange namn: ");
-            string newName = Console.ReadLine();
-            Console.WriteLine("Ange lösenord: ");
-            string newPassword = Console.ReadLine();
-            Console.Write("Adminrättigheter? (y/n): ");
-            string newAdmin = Console.ReadLine().ToUpper();
-            bool newAdminBool = false;
+            using (var db = new BookingSystemContext())
+            {
+                var userName = db.Users.Where(x => x.Id == Globals.loggedInId).Select(x => x.Name).FirstOrDefault();
 
-            if (newAdmin == "Y")
-            {
-                newAdminBool = true;
+                Console.WriteLine($"{userName} - Alla bokningar\n\n" +
+                    $"[A]vboka rum\t[T]illbaka\n");
+
+                var bookings = (from b in db.Bookings
+                                join u in db.Users on b.UserId equals u.Id
+                                join d in db.Days on b.DayId equals d.Id
+                                join r in db.Rooms on b.RoomId equals r.Id
+                                orderby b.Week, d.Id
+                                select new { BookingId = b.Id, RoomName = r.RoomName, Week = b.Week, Day = d.Name, UserId = u.Id, UserName = u.Name });
+
+                Console.WriteLine($"Boknings-ID\tRumsnamn\tVecka\tDag\tAnvändar-Id\tAnvändare");
+                foreach (var booking in bookings)
+                {
+                    Console.WriteLine($"{booking.BookingId}\t\t{booking.RoomName}\t\t{booking.Week}\t{booking.Day}\t{booking.UserId}\t\t{booking.UserName}");
+                }
+
+                ConsoleKeyInfo key = Console.ReadKey(true);
+
+                switch (key.KeyChar)
+                {
+                    case 't':
+                        AdminStartPage();
+                        break;
+                    case 'a':
+                        Console.WriteLine();
+                        Console.Write("Skriv in ID på den bokning du vill ta bort: ");
+                        int bookingId = int.Parse(Console.ReadLine());
+
+                        var booking = db.Bookings.Where(x => x.Id == bookingId).SingleOrDefault();
+
+                        if (booking != null)
+                        {
+                            db.Bookings.Remove((Booking)booking);
+                            db.SaveChanges();
+                        }
+
+                        Console.WriteLine("Rum avbokat! Tryck någonstans för att fortsätta.");
+                        Console.ReadKey();
+                        ViewAllBookings();
+
+                        break;
+                    default:
+                        WrongInput();
+                        break;
+                }
             }
-            else if (newAdmin == "N")
-            {
-                newAdminBool = false;
-            }
-            else
-            {
-                WrongInput();
-            }
+        }
+        private static void Statistics()
+        {
+            Console.WriteLine("\nStatistik\n\n" +
+                "0. Gå tillbaka\n" +
+                "1. Populäraste rummet\n" +
+                "2. Aktivaste användaren");
 
             using (var db = new BookingSystemContext())
             {
-                var newUser = new User
-                {
-                    SocialSecurityNumber = newSocialSecurityNumber,
-                    Password = newPassword,
-                    Name = newName,
-                    Admin = newAdminBool,
-                };
-                var userList = db.Users;
-                userList.Add(newUser);
-                db.SaveChanges();
-            }
 
-            Console.WriteLine("Du är nu registerad! Tryck någonstans för att fortsätta.");
+                ConsoleKeyInfo key = Console.ReadKey(true);
+
+                switch (key.KeyChar)
+                {
+                    case '0':
+                        AdminStartPage();
+                        break;
+                    case '1':
+                        var mostBookedRooms = (from r in db.Rooms
+                                               join b in db.Bookings on r.Id equals b.RoomId
+                                               select new { r.RoomName, b.RoomId }).ToList().GroupBy(r => r.RoomName);
+                        int count = 1;
+
+                        Console.WriteLine("\nTre populäraste rummen:\n");
+
+                        foreach (var room in mostBookedRooms.OrderByDescending(r => r.Count()).Take(3))
+                        {
+                            Console.WriteLine($"{count}: Rum {room.Key} har bokats {room.Count()} gånger.");
+                            count++;
+                        }
+                        break;
+                    case '2':
+                        var mostActiveUsers = (from u in db.Users
+                                               join b in db.Bookings on u.Id equals b.UserId
+                                               select new { u.Name, b.UserId }).ToList().GroupBy(u => u.Name);
+                        count = 1;
+
+                        Console.WriteLine("\nTre aktivaste användarna:\n");
+
+                        foreach (var user in mostActiveUsers.OrderByDescending(u => u.Count()).Take(3))
+                        {
+                            Console.WriteLine($"{count}: {user.Key} har bokat rum {user.Count()} gånger.");
+                            count++;
+                        }
+                        break;
+                    default:
+                        WrongInput();
+                        break;
+                }
+            }
             Console.ReadKey();
-            StartPage();
+            AdminStartPage();
         }
 
+        //――――――――――――――――――――――Hjälpmetoder―――――――――――――――――――――――――――――――――――――――――――――――――
         internal static void WrongInput()
         {
             Console.WriteLine("Fel inmatning. Försök igen.");
-        }
-
-        private static void ShowAllDays()
-        {
-            using (var db = new BookingSystemContext())
-            {
-                int i = 11;
-                Console.SetCursorPosition(45, i);
-                Console.WriteLine("ID\tDag");
-                foreach (var day in db.Days)
-                {
-                    i++;
-                    Console.SetCursorPosition(45, i);
-                    Console.WriteLine($"{day.Id}\t{day.Name}");
-                }
-
-            }
-        }
-        private static void ShowAllRooms()
-        {
-            using (var db = new BookingSystemContext())
-            {
-                int i = 11;
-                Console.SetCursorPosition(60, i);
-                Console.WriteLine("ID\tRumsnamn");
-                foreach (var room in db.Rooms)
-                {
-                    i++;
-                    Console.SetCursorPosition(60, i);
-                    Console.WriteLine($"{room.Id}\t{room.RoomName}");
-                }
-
-            }
         }
         public static int GetIso8601WeekOfYear(DateTime time) // metod som räknar ut nuvarande veckonummer. snodd direkt från stackoverflow. 
         {
